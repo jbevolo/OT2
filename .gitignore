@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Logs y temporales
+*.log
+*.tmp
+
+# Entornos / credenciales locales (no comprometer)
+.env
+.env.*
