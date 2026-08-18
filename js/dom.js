@@ -101,9 +101,16 @@ export const DOM = {
   logoutBtn: $('logout-btn'),
 
   searchInput: $('search-input'),
+  statusFilter: $('status-filter'),
   paginationControls: $('pagination-controls'),
   dbContainer: $('db-container'),
   saveBtn: $('save-btn'),
+  formTitle: $('form-title'),
+  cancelEditBtn: $('cancel-edit-btn'),
+  finalizacionFields: $('finalizacion-fields'),
+  montoEditInput: $('monto-edit'),
+  formaPagoEditInput: $('forma-pago-edit'),
+  notasExtraEditInput: $('notas-extra-edit'),
 
   fechaInput: $('fecha'),
   nombreInput: $('nombre'),
@@ -145,6 +152,7 @@ export const DOM = {
   backupBtn: $('backup-btn'),
   restoreBtn: $('restore-btn'),
   restoreInput: $('restore-input'),
+  exportCsvBtn: $('export-csv-btn'),
 
   notificationModal: $('notification-modal'),
   notificationMessage: $('notification-message'),

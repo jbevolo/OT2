@@ -162,6 +162,9 @@
                     <button id="restore-btn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">
                         <i class="fas fa-upload mr-2"></i>Restaurar
                     </button>
+                    <button id="export-csv-btn" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700">
+                        <i class="fas fa-file-csv mr-2"></i>Exportar CSV
+                    </button>
                     <button id="backup-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">
                         <i class="fas fa-download mr-2"></i>Backup
                     </button>
@@ -176,7 +179,12 @@
                 <!-- Columna del Formulario -->
                 <div class="lg:col-span-1">
                     <div id="form-container" class="bg-white p-6 rounded-xl shadow-lg form-section">
-                        <h2 class="text-2xl font-bold mb-6 border-b pb-3">Nueva Orden</h2>
+                        <div class="flex justify-between items-center mb-6 border-b pb-3">
+                            <h2 id="form-title" class="text-2xl font-bold">Nueva Orden</h2>
+                            <button id="cancel-edit-btn" type="button" class="hidden text-gray-400 hover:text-red-600" title="Cancelar edición">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
                         <form id="work-order-form" class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
@@ -251,6 +259,30 @@
                                 <div id="fotos-preview" class="grid grid-cols-5 gap-1 mt-2"></div>
                             </div>
 
+                            <!-- Campos de finalización editables (solo visibles al editar órdenes finalizadas) -->
+                            <div id="finalizacion-fields" class="hidden space-y-4 pt-4 border-t">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="monto-edit" class="block text-sm font-medium text-gray-700">Monto Cobrado ($)</label>
+                                        <input type="number" id="monto-edit" step="0.01" class="mt-1 block w-full border-gray-300 rounded-md p-2">
+                                    </div>
+                                    <div>
+                                        <label for="forma-pago-edit" class="block text-sm font-medium text-gray-700">Forma de Pago</label>
+                                        <select id="forma-pago-edit" class="mt-1 block w-full border-gray-300 rounded-md p-2 bg-white">
+                                            <option value="">Seleccione...</option>
+                                            <option value="Efectivo">Efectivo</option>
+                                            <option value="Transferencia">Transferencia</option>
+                                            <option value="Débito">Débito</option>
+                                            <option value="Crédito">Crédito</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="notas-extra-edit" class="block text-sm font-medium text-gray-700">Notas Adicionales (Opcional)</label>
+                                    <textarea id="notas-extra-edit" rows="2" class="mt-1 block w-full border-gray-300 rounded-md p-2"></textarea>
+                                </div>
+                            </div>
+
                             <button type="button" id="print-draft-btn" class="w-full flex justify-center items-center bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 mb-2">
                                 <i class="fas fa-print mr-2"></i> Imprimir Borrador
                             </button>
@@ -264,13 +296,18 @@
                 <!-- Columna de la Base de Datos -->
                 <div class="lg:col-span-2">
                     <div id="db-container" class="bg-white p-6 rounded-xl shadow-lg db-section">
-                        <div class="flex justify-between items-center mb-4 border-b pb-3">
+                        <div class="flex flex-wrap justify-between items-center mb-4 border-b pb-3">
                             <h2 class="text-2xl font-bold">Órdenes Online</h2>
-                            <div class="relative w-64">
-                                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                                    <i class="fas fa-search text-gray-400"></i>
-                                </span>
-                                <input type="text" id="search-input" placeholder="Buscar..." class="w-full pl-10 p-2 border border-gray-300 rounded-md">
+                            <div class="flex items-center space-x-2">
+                                <select id="status-filter" class="p-2 border border-gray-300 rounded-md bg-white text-sm" title="Filtrar por estado">
+                                    <option value="">Todos los estados</option>
+                                </select>
+                                <div class="relative w-64">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <i class="fas fa-search text-gray-400"></i>
+                                    </span>
+                                    <input type="text" id="search-input" placeholder="Buscar..." class="w-full pl-10 p-2 border border-gray-300 rounded-md">
+                                </div>
                             </div>
                         </div>
                         <div class="overflow-x-auto">

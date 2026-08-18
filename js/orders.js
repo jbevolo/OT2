@@ -5,7 +5,7 @@
  */
 
 import { supabaseClient } from './supabase.js';
-import { state, setAllOrders, setCurrentPage, setFilteredOrders, ORDERS_PER_PAGE } from './state.js';
+import { state, setAllOrders, setCurrentPage, setFilteredOrders, setStatusFilter, setEditingOrderId, statusBadgeClass, ORDER_STATUSES, FORM_MODE, ORDERS_PER_PAGE } from './state.js';
 import { DOM, escapeHtml, normalizeFotos } from './dom.js';
 import { showNotification } from './notify.js';
 import { shareViaWhatsApp, openLightbox } from './share.js';
@@ -31,12 +31,26 @@ export async function fetchOrders() {
     // Resetear paginación y filtros al cargar datos frescos
     setCurrentPage(1);
     setFilteredOrders(null);
-    // Limpiar campo de búsqueda
+    setStatusFilter(null);
     if (DOM.searchInput) DOM.searchInput.value = '';
+    if (DOM.statusFilter) DOM.statusFilter.value = '';
 
     renderOrders();
     setNextOrderNumber();
   }
+}
+
+/**
+ * Calcula las órdenes a mostrar combinando los filtros activos:
+ * búsqueda (state.filteredOrders) AND estado (state.statusFilter).
+ * @returns {Array<Object>} Órdenes resultantes de aplicar todos los filtros
+ */
+export function applyFilters() {
+  let list = state.filteredOrders !== null ? state.filteredOrders : state.allOrders;
+  if (state.statusFilter !== null) {
+    list = list.filter((order) => order.status === state.statusFilter);
+  }
+  return list;
 }
 
 /**
@@ -45,7 +59,7 @@ export async function fetchOrders() {
  */
 export function renderOrders(orders) {
   // Determinar qué órdenes usar
-  const sourceOrders = orders || state.filteredOrders || state.allOrders;
+  const sourceOrders = orders || applyFilters();
 
   // Calcular paginación
   const totalOrders = sourceOrders.length;
@@ -64,7 +78,8 @@ export function renderOrders(orders) {
   DOM.tableBody.innerHTML = '';
 
   if (totalOrders === 0) {
-    const message = state.filteredOrders ? 'No se encontraron órdenes con ese criterio.' : 'No hay órdenes registradas.';
+    const hasActiveFilter = state.filteredOrders !== null || state.statusFilter !== null;
+    const message = hasActiveFilter ? 'No se encontraron órdenes con ese criterio.' : 'No hay órdenes registradas.';
     DOM.tableBody.innerHTML = `<tr><td colspan="8" class="text-center p-8 text-gray-500">${message}</td></tr>`;
     renderPagination(0, 0);
     return;
@@ -72,7 +87,7 @@ export function renderOrders(orders) {
 
   pageOrders.forEach((order) => {
     const tr = document.createElement('tr');
-    const statusColor = order.status === 'Finalizada' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+    const statusColor = statusBadgeClass(order.status);
     const hasFotos = normalizeFotos(order.fotos).length > 0;
 
     tr.innerHTML = `
@@ -87,6 +102,7 @@ export function renderOrders(orders) {
       <td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusColor}">${escapeHtml(order.status)}</span></td>
       <td class="px-4 py-4 text-sm">
         <div class="flex items-center space-x-3">
+          <button class="edit-btn text-indigo-600 hover:text-indigo-900" title="Editar"><i class="fas fa-pencil-alt fa-lg"></i></button>
           <button class="view-btn text-blue-600 hover:text-blue-900" title="Ver Detalles"><i class="fas fa-eye fa-lg"></i></button>
           <button class="whatsapp-btn text-green-500 hover:text-green-700" title="Enviar por WhatsApp"><i class="fab fa-whatsapp fa-lg"></i></button>
           ${order.status !== 'Finalizada' ? `<button class="complete-btn text-green-600 hover:text-green-900" title="Finalizar"><i class="fas fa-check-circle fa-lg"></i></button>` : ''}
@@ -96,6 +112,7 @@ export function renderOrders(orders) {
       </td>
     `;
 
+    tr.querySelector('.edit-btn').onclick = () => startEditOrder(order);
     tr.querySelector('.view-btn').onclick = () => viewOrder(order);
     tr.querySelector('.whatsapp-btn').onclick = () => shareViaWhatsApp(order);
     if (order.status !== 'Finalizada') {
@@ -136,7 +153,7 @@ export function renderPagination(totalOrders, totalPages) {
     <div class="flex justify-between items-center">
       <div class="text-sm text-gray-600">
         Mostrando <span class="font-bold">${start}</span> - <span class="font-bold">${end}</span> de <span class="font-bold">${totalOrders}</span> órdenes
-        ${state.filteredOrders ? ' (filtradas)' : ''}
+        ${state.filteredOrders !== null || state.statusFilter !== null ? ' (filtradas)' : ''}
       </div>
       <div class="flex items-center space-x-2">
         <button id="prev-page-btn"
@@ -227,24 +244,31 @@ export function setNextOrderNumber() {
 }
 
 /**
- * Maneja el envío del formulario de nueva orden de trabajo.
- * Flujo: 1) Sube fotos a Supabase Storage (uploadPhotos), 2) Inserta orden en BD.
+ * Maneja el envío del formulario de orden de trabajo.
+ * Modo CREATE: sube fotos y hace INSERT con status 'Abierta'.
+ * Modo EDIT: hace UPDATE .eq('id', state.editingOrderId) preservando fotos
+ * y user_id existentes; los campos de finalización solo se envían si la orden
+ * editada estaba Finalizada (si no, se conservan los valores previos en la BD).
  * @async
  * @param {Event} e - Evento submit del formulario
  */
 export async function saveOrder(e) {
   e.preventDefault();
+  const isEditing = state.editingOrderId !== null;
   const saveBtn = DOM.saveBtn;
   saveBtn.disabled = true;
   saveBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...`;
 
   try {
-    // 1. Subir fotos a Supabase Storage
-    const fotoUrls = await uploadPhotos(state.selectedFotosFiles);
+    // 1. Subir fotos a Supabase Storage (solo al crear; en edición se agregan
+    //    desde el modal de detalle con "Añadir más fotos")
+    let fotoUrls = [];
+    if (!isEditing) {
+      fotoUrls = await uploadPhotos(state.selectedFotosFiles);
+    }
 
-    // 2. Guardar en Base de Datos
-    const newOrder = {
-      user_id: state.currentUser.id,
+    // 2. Datos comunes del formulario
+    const orderData = {
       order_number: parseInt(DOM.orderNumberInput.value),
       fecha: DOM.fechaInput.value,
       nombre: DOM.nombreInput.value,
@@ -258,25 +282,135 @@ export async function saveOrder(e) {
       nv: DOM.nvInput.checked,
       retencion: DOM.retencionInput.checked,
       mangueras: DOM.manguerasInput.checked,
-      fotos: fotoUrls,
-      status: 'Abierta',
     };
 
-    const { error } = await supabaseClient.from('work_orders').insert([newOrder]);
+    let error;
+    if (isEditing) {
+      // Conservar fotos/user_id: no se incluyen en el UPDATE.
+      // Campos de finalización solo si la orden editada estaba Finalizada.
+      const current = state.allOrders.find((o) => o.id === state.editingOrderId);
+      if (current && current.status === 'Finalizada') {
+        orderData.monto_cobrado = DOM.montoEditInput.value === '' ? null : parseFloat(DOM.montoEditInput.value);
+        orderData.forma_pago = DOM.formaPagoEditInput.value;
+        orderData.notas_extra = DOM.notasExtraEditInput.value;
+      }
+      const { error: updErr } = await supabaseClient
+        .from('work_orders')
+        .update(orderData)
+        .eq('id', state.editingOrderId);
+      error = updErr;
+    } else {
+      const newOrder = {
+        ...orderData,
+        user_id: state.currentUser.id,
+        fotos: fotoUrls,
+        status: 'Abierta',
+      };
+      const { error: insErr } = await supabaseClient.from('work_orders').insert([newOrder]);
+      error = insErr;
+    }
+
     if (error) throw error;
 
-    showNotification('Orden guardada online correctamente.');
-    DOM.workOrderForm.reset();
-    state.selectedFotosFiles = [];
-    renderFotosPreview();
+    if (isEditing) {
+      showNotification(`Orden #${orderData.order_number} actualizada.`);
+      resetFormToCreate();
+    } else {
+      showNotification('Orden guardada online correctamente.');
+      DOM.workOrderForm.reset();
+      state.selectedFotosFiles = [];
+      renderFotosPreview();
+    }
     fetchOrders();
   } catch (err) {
     console.error(err);
     showNotification('Error al guardar: ' + err.message);
   } finally {
     saveBtn.disabled = false;
-    saveBtn.innerHTML = `<i class="fas fa-cloud-upload-alt mr-2"></i> Guardar en la Nube`;
+    saveBtn.innerHTML = isEditing
+      ? `<i class="fas fa-cloud-upload-alt mr-2"></i> Actualizar Orden`
+      : `<i class="fas fa-cloud-upload-alt mr-2"></i> Guardar en la Nube`;
   }
+}
+
+/**
+ * Cambia el formulario al modo edición de una orden y lo rellena.
+ * El título pasa a "Editar Orden #N" y el botón de guardar a "Actualizar Orden".
+ * @param {Object} order - Objeto orden a editar
+ */
+export function startEditOrder(order) {
+  setEditingOrderId(order.id);
+  fillFormForEdit(order);
+
+  DOM.formTitle.textContent = `Editar Orden #${order.order_number}`;
+  DOM.cancelEditBtn.classList.remove('hidden');
+  DOM.finalizacionFields.classList.toggle('hidden', order.status !== 'Finalizada');
+  setSaveBtnLabel(FORM_MODE.EDIT);
+
+  // En edición no se suben fotos nuevas desde el formulario
+  state.selectedFotosFiles = [];
+  renderFotosPreview();
+
+  DOM.workOrderForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Rellena todos los campos editables del formulario con los datos de la orden.
+ * Si la orden estaba Finalizada carga monto/forma de pago/notas; si no, los deja
+ * vacíos (el guardado preserva los valores previos en la BD).
+ * @param {Object} order - Objeto orden a editar
+ */
+function fillFormForEdit(order) {
+  DOM.orderNumberInput.value = order.order_number;
+  DOM.fechaInput.value = order.fecha || '';
+  DOM.nombreInput.value = order.nombre || '';
+  DOM.telefonoInput.value = order.telefono || '';
+  DOM.vehiculoInput.value = order.vehiculo || '';
+  DOM.dominioInput.value = order.dominio || '';
+  DOM.novedadesInput.value = order.novedades || '';
+  DOM.garantiaInput.checked = !!order.garantia;
+  DOM.obleaInput.checked = !!order.oblea;
+  DOM.phInput.checked = !!order.ph;
+  DOM.nvInput.checked = !!order.nv;
+  DOM.retencionInput.checked = !!order.retencion;
+  DOM.manguerasInput.checked = !!order.mangueras;
+
+  if (order.status === 'Finalizada') {
+    DOM.montoEditInput.value = order.monto_cobrado != null ? order.monto_cobrado : '';
+    DOM.formaPagoEditInput.value = order.forma_pago || '';
+    DOM.notasExtraEditInput.value = order.notas_extra || '';
+  } else {
+    DOM.montoEditInput.value = '';
+    DOM.formaPagoEditInput.value = '';
+    DOM.notasExtraEditInput.value = '';
+  }
+}
+
+/**
+ * Vuelve el formulario al modo creación: limpia campos, oculta controles de
+ * edición y restablece el título y el botón de guardar.
+ */
+export function resetFormToCreate() {
+  setEditingOrderId(null);
+  DOM.workOrderForm.reset();
+  DOM.formTitle.textContent = 'Nueva Orden';
+  DOM.cancelEditBtn.classList.add('hidden');
+  DOM.finalizacionFields.classList.add('hidden');
+  state.selectedFotosFiles = [];
+  renderFotosPreview();
+  setSaveBtnLabel(FORM_MODE.CREATE);
+  setNextOrderNumber();
+}
+
+/**
+ * Actualiza el texto/icono del botón de guardar según el modo del formulario.
+ * @param {string} mode - Modo del formulario (FORM_MODE.CREATE o FORM_MODE.EDIT)
+ */
+function setSaveBtnLabel(mode) {
+  DOM.saveBtn.innerHTML =
+    mode === FORM_MODE.EDIT
+      ? `<i class="fas fa-cloud-upload-alt mr-2"></i> Actualizar Orden`
+      : `<i class="fas fa-cloud-upload-alt mr-2"></i> Guardar en la Nube`;
 }
 
 /**
@@ -437,6 +571,30 @@ export async function finalizar(e) {
 DOM.workOrderForm.addEventListener('submit', saveOrder);
 
 DOM.completeOrderForm.addEventListener('submit', finalizar);
+
+// Población del select de filtro por estado a partir de ORDER_STATUSES
+if (DOM.statusFilter) {
+  DOM.statusFilter.innerHTML =
+    '<option value="">Todos los estados</option>' +
+    ORDER_STATUSES.map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`).join('');
+}
+
+// Filtro por estado: complementario a la búsqueda (se combinan en applyFilters)
+if (DOM.statusFilter) {
+  DOM.statusFilter.addEventListener('change', (e) => {
+    setStatusFilter(e.target.value === '' ? null : e.target.value);
+    setCurrentPage(1);
+    renderOrders();
+  });
+}
+
+// Cancelar edición: vuelve el form a modo creación y recarga las órdenes
+if (DOM.cancelEditBtn) {
+  DOM.cancelEditBtn.addEventListener('click', () => {
+    resetFormToCreate();
+    fetchOrders();
+  });
+}
 
 // Búsqueda en tiempo real con debounce de 300ms
 let searchTimeout = null;

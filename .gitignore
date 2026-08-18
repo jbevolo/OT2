@@ -8,3 +8,5 @@
 # Entornos / credenciales locales (no comprometer)
 .env
 .env.*
+# Backups de datos de clientes (NO subir)
+backup_*.json

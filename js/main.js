@@ -19,6 +19,7 @@ import './share.js';
 import './publicView.js';
 import './print.js';
 import './backup.js';
+import './export.js';
 import { checkUser } from './auth.js';
 import { showPublicOrderView } from './publicView.js';
 
