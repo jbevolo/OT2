@@ -65,6 +65,27 @@ Abrir http://localhost:8080
 
 La app es estática: se puede subir a cualquier hosting estático (Netlify, Vercel, Supabase Hosting, GitHub Pages). No requiere paso de build.
 
+## Dashboard
+
+El proyecto incluye un dashboard de estadísticas del taller (`dashboard.html`) con acceso restringido a administradores.
+
+- **URL**: `https://jbevolo.github.io/OT2/dashboard.html` (y `http://localhost:8080/dashboard.html` en local).
+- **Acceso**: solo usuarios cuyo email figure en la tabla supabase `admin_users`. El botón "Dashboard" del panel principal (`index.html`) enlaza a la página. Sin sesión pide login; con sesión pero sin permiso muestra "Acceso restringido".
+- **Setup inicial**: ejecutar `supabase/dashboard.sql` en Supabase → SQL Editor (crea la tabla `admin_users` y la función RPC `is_dashboard_admin`).
+- **Habilitar un usuario** (ejecutar en Supabase → SQL Editor o `psql`):
+
+  ```sql
+  INSERT INTO admin_users (email) VALUES ('correo@dominio.com');
+  ```
+
+- **Revocar acceso**:
+
+  ```sql
+  DELETE FROM admin_users WHERE email = 'correo@dominio.com';
+  ```
+
+> La tabla `admin_users` tiene RLS habilitado y sin privilegios para `anon`/`authenticated`; el dashboard solo consulta vía la función RPC.
+
 ## Licencia
 
 Uso interno.

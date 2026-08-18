@@ -2,18 +2,20 @@
  * @file sw.js
  * @description Service Worker para la PWA "Gestión de Taller OT".
  * Maneja el cache de assets estáticos para funcionamiento offline.
- * @version 1.1
+ * @version 1.2
  */
 
 /** @type {string} Nombre del cache actual */
-const CACHE_NAME = 'taller-ot-v2';
+const CACHE_NAME = 'taller-ot-v3';
 
 /** @type {string[]} Assets a precachear para uso offline */
 const ASSETS = [
   'index.html',
+  'dashboard.html',
   'manifest.json',
   'css/styles.css',
   'js/main.js',
+  'js/dashboard.js',
   'js/config.js',
   'js/supabase.js',
   'js/dom.js',

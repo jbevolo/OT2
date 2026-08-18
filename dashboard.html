@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Gestión de Taller Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="icon.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- ==================== ACCESO (LOGIN) ==================== -->
+    <!-- Login exclusivo para el dashboard. Solo login, sin registro. -->
+    <div id="auth-dash" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Dashboard — Acceso Restringido</h2>
+            <form id="dash-login-form" class="space-y-4">
+                <div>
+                    <label for="dash-email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                    <input type="email" id="dash-email" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div>
+                    <label for="dash-password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                    <input type="password" id="dash-password" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500" required>
+                </div>
+                <div class="pt-2">
+                    <button type="submit" id="dash-login-btn" class="w-full flex justify-center items-center bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700">
+                        <i class="fas fa-sign-in-alt mr-2"></i> Ingresar
+                    </button>
+                </div>
+                <p class="text-center text-xs text-gray-500 mt-4">Solo usuarios autorizados pueden ver el dashboard.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== ACCESO DENEGADO ==================== -->
+    <!-- Se muestra cuando hay sesión activa pero el email no es admin. -->
+    <div id="denied-dash" class="hidden min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-lg text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 text-2xl mb-4">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h2 class="text-xl font-bold text-gray-800">Acceso restringido</h2>
+            <p class="text-gray-600 mt-2 leading-relaxed">Tu usuario no está habilitado para ver el dashboard.</p>
+            <a href="index.html" class="inline-block mt-6 bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-lg hover:bg-indigo-700">
+                Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- ==================== PANEL DASHBOARD ==================== -->
+    <!-- Estadísticas generales del taller. Requiere usuario admin. -->
+    <div id="panel-dash" class="hidden">
+        <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+            <header class="flex flex-wrap justify-between items-center mb-8">
+                <div class="text-left">
+                    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Dashboard <span class="text-indigo-600">Taller</span></h1>
+                    <p id="dash-user-display" class="text-gray-600 mt-2"></p>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <a href="index.html" class="bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 inline-flex items-center">
+                        <i class="fas fa-arrow-left mr-2"></i>Volver al Panel
+                    </a>
+                    <button id="dash-logout-btn" class="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Salir
+                    </button>
+                </div>
+            </header>
+
+            <!-- Fila de KPIs -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Total de órdenes</p>
+                    <p id="kpi-total" class="text-2xl font-bold text-gray-900 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Activas</p>
+                    <p id="kpi-activas" class="text-2xl font-bold text-yellow-700 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">En espera de repuesto</p>
+                    <p id="kpi-espera" class="text-2xl font-bold text-orange-700 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">En reparación</p>
+                    <p id="kpi-reparacion" class="text-2xl font-bold text-blue-700 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Listas para entregar</p>
+                    <p id="kpi-listas" class="text-2xl font-bold text-teal-700 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Finalizadas</p>
+                    <p id="kpi-finalizadas" class="text-2xl font-bold text-green-700 mt-1">--</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-lg">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Ingresos</p>
+                    <p id="kpi-ingresos" class="text-2xl font-bold text-green-700 mt-1">--</p>
+                </div>
+            </div>
+
+            <!-- Fila de filtros -->
+            <div class="bg-white p-4 rounded-xl shadow-lg flex flex-wrap items-end gap-4 mb-6">
+                <div>
+                    <label for="dash-filtro-estado" class="block text-sm font-medium text-gray-700">Estado</label>
+                    <select id="dash-filtro-estado" class="mt-1 p-2 border border-gray-300 rounded-md bg-white text-sm">
+                        <option value="">Todos los estados</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="dash-fecha-desde" class="block text-sm font-medium text-gray-700">Desde</label>
+                    <input type="date" id="dash-fecha-desde" class="mt-1 p-2 border border-gray-300 rounded-md bg-white text-sm">
+                </div>
+                <div>
+                    <label for="dash-fecha-hasta" class="block text-sm font-medium text-gray-700">Hasta</label>
+                    <input type="date" id="dash-fecha-hasta" class="mt-1 p-2 border border-gray-300 rounded-md bg-white text-sm">
+                </div>
+                <div class="text-xs text-gray-500 pb-1">Los filtros se aplican automáticamente al cambiar.</div>
+            </div>
+
+            <!-- Tabla de últimas órdenes activas -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="px-6 py-4 border-b">
+                    <h2 class="text-lg font-bold">Últimas órdenes activas</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table id="tabla-ultimas" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N°</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dominio</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-ultimas" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="7" class="text-center p-8 text-gray-500">Cargando datos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST ==================== -->
+    <!-- Notificaciones simples (errores de login, etc.). -->
+    <div id="dash-toast" class="hidden fixed bottom-4 right-4 z-50 max-w-sm px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold bg-red-600"></div>
+
+    <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>
