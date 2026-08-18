@@ -27,8 +27,7 @@ export async function showPublicOrderView(orderId) {
     // SOLO las columnas públicas del cliente y solo para el id pedido;
     // la tabla work_orders nunca queda expuesta al rol anon.
     const { data: order, error } = await supabaseClient
-      .rpc('get_public_order', { p_id: orderId })
-      .single();
+      .rpc('get_public_order', { p_id: orderId });
 
     if (error) throw error;
 
