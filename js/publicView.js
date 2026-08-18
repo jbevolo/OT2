@@ -22,11 +22,12 @@ export async function showPublicOrderView(orderId) {
   DOM.publicContainer.classList.remove('hidden');
 
   try {
-    // Consultar la orden a Supabase por ID
+    // Consultar la orden a Supabase por ID mediante RPC segura.
+    // La función get_public_order (ver supabase/rls_policies.sql) devuelve
+    // SOLO las columnas públicas del cliente y solo para el id pedido;
+    // la tabla work_orders nunca queda expuesta al rol anon.
     const { data: order, error } = await supabaseClient
-      .from('work_orders')
-      .select('*')
-      .eq('id', orderId)
+      .rpc('get_public_order', { p_id: orderId })
       .single();
 
     if (error) throw error;
