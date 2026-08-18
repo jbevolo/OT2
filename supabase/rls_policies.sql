@@ -43,7 +43,7 @@ CREATE POLICY "admin_delete_own" ON public.work_orders
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_public_order(p_id uuid)
 RETURNS TABLE (
-  order_number   bigint,
+  order_number   integer,
   status         text,
   fecha          text,
   nombre         text,
