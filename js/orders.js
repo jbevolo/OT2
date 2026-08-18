@@ -247,8 +247,9 @@ export function setNextOrderNumber() {
  * Maneja el envío del formulario de orden de trabajo.
  * Modo CREATE: sube fotos y hace INSERT con status 'Abierta'.
  * Modo EDIT: hace UPDATE .eq('id', state.editingOrderId) preservando fotos
- * y user_id existentes; los campos de finalización solo se envían si la orden
- * editada estaba Finalizada (si no, se conservan los valores previos en la BD).
+ * y user_id existentes. El estado se toma del select #status-edit; los campos
+ * de finalización (monto/forma de pago/notas) solo se envían si el estado
+ * elegido es 'Finalizada' (si no, se conservan los valores previos en la BD).
  * @async
  * @param {Event} e - Evento submit del formulario
  */
@@ -287,9 +288,10 @@ export async function saveOrder(e) {
     let error;
     if (isEditing) {
       // Conservar fotos/user_id: no se incluyen en el UPDATE.
-      // Campos de finalización solo si la orden editada estaba Finalizada.
-      const current = state.allOrders.find((o) => o.id === state.editingOrderId);
-      if (current && current.status === 'Finalizada') {
+      // El estado se toma del select del form; los campos de finalización solo
+      // se envían si el estado elegido es 'Finalizada'.
+      orderData.status = DOM.statusEditSelect.value;
+      if (orderData.status === 'Finalizada') {
         orderData.monto_cobrado = DOM.montoEditInput.value === '' ? null : parseFloat(DOM.montoEditInput.value);
         orderData.forma_pago = DOM.formaPagoEditInput.value;
         orderData.notas_extra = DOM.notasExtraEditInput.value;
@@ -344,7 +346,8 @@ export function startEditOrder(order) {
 
   DOM.formTitle.textContent = `Editar Orden #${order.order_number}`;
   DOM.cancelEditBtn.classList.remove('hidden');
-  DOM.finalizacionFields.classList.toggle('hidden', order.status !== 'Finalizada');
+  DOM.statusEditField.classList.remove('hidden');
+  syncFinalizacionFieldsWithStatus();
   setSaveBtnLabel(FORM_MODE.EDIT);
 
   // En edición no se suben fotos nuevas desde el formulario
@@ -374,6 +377,7 @@ function fillFormForEdit(order) {
   DOM.nvInput.checked = !!order.nv;
   DOM.retencionInput.checked = !!order.retencion;
   DOM.manguerasInput.checked = !!order.mangueras;
+  DOM.statusEditSelect.value = order.status;
 
   if (order.status === 'Finalizada') {
     DOM.montoEditInput.value = order.monto_cobrado != null ? order.monto_cobrado : '';
@@ -395,6 +399,8 @@ export function resetFormToCreate() {
   DOM.workOrderForm.reset();
   DOM.formTitle.textContent = 'Nueva Orden';
   DOM.cancelEditBtn.classList.add('hidden');
+  DOM.statusEditField.classList.add('hidden');
+  DOM.statusEditSelect.value = 'Abierta';
   DOM.finalizacionFields.classList.add('hidden');
   state.selectedFotosFiles = [];
   renderFotosPreview();
@@ -514,6 +520,26 @@ export function viewOrder(order) {
 
   // Configurar botón de WhatsApp en el modal
   DOM.viewWhatsappBtn.onclick = () => shareViaWhatsApp(order);
+
+  // Cambio de estado desde el modal: visible siempre (permite salir de Finalizada)
+  DOM.viewStatusSelect.value = order.status;
+  DOM.viewStatusSaveBtn.onclick = async () => {
+    const newStatus = DOM.viewStatusSelect.value;
+    DOM.viewStatusSaveBtn.disabled = true;
+    const { error } = await supabaseClient
+      .from('work_orders')
+      .update({ status: newStatus })
+      .eq('id', order.id);
+    DOM.viewStatusSaveBtn.disabled = false;
+    if (error) {
+      showNotification('Error al actualizar el estado: ' + error.message);
+      return;
+    }
+    showNotification(`Estado actualizado a ${newStatus}.`);
+    // Refrescar el modal con el nuevo estado (recalcula secciones y el select)
+    viewOrder({ ...order, status: newStatus });
+    fetchOrders();
+  };
 }
 
 /**
@@ -577,6 +603,27 @@ if (DOM.statusFilter) {
   DOM.statusFilter.innerHTML =
     '<option value="">Todos los estados</option>' +
     ORDER_STATUSES.map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`).join('');
+}
+
+// Población de los selects de cambio de estado (form de edición y modal de detalle)
+const statusOptions = ORDER_STATUSES
+  .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
+  .join('');
+if (DOM.statusEditSelect) DOM.statusEditSelect.innerHTML = statusOptions;
+if (DOM.viewStatusSelect) DOM.viewStatusSelect.innerHTML = statusOptions;
+
+/**
+ * Muestra/oculta los campos de finalización del form según el estado elegido.
+ * Pasa a depender de la selección actual (no del estado original de la orden),
+ * permitiendo llevar una orden a Finalizada desde la edición.
+ */
+function syncFinalizacionFieldsWithStatus() {
+  DOM.finalizacionFields.classList.toggle('hidden', DOM.statusEditSelect.value !== 'Finalizada');
+}
+
+// Toggle coherente al cambiar el estado en el formulario de edición
+if (DOM.statusEditSelect) {
+  DOM.statusEditSelect.addEventListener('change', syncFinalizacionFieldsWithStatus);
 }
 
 // Filtro por estado: complementario a la búsqueda (se combinan en applyFilters)

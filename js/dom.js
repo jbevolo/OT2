@@ -111,6 +111,8 @@ export const DOM = {
   montoEditInput: $('monto-edit'),
   formaPagoEditInput: $('forma-pago-edit'),
   notasExtraEditInput: $('notas-extra-edit'),
+  statusEditSelect: $('status-edit'),
+  statusEditField: $('status-edit-field'),
 
   fechaInput: $('fecha'),
   nombreInput: $('nombre'),
@@ -128,6 +130,9 @@ export const DOM = {
   viewOrderModal: $('view-order-modal'),
   viewOrderContent: $('view-order-content'),
   viewWhatsappBtn: $('view-whatsapp-btn'),
+  viewStatusSelect: $('view-status-select'),
+  viewStatusSaveBtn: $('view-status-save-btn'),
+  viewStatusSection: $('view-status-section'),
   addPhotosSection: $('add-photos-section'),
   addMoreInputBack: $('add-more-input-back'),
   addMoreInputFront: $('add-more-input-front'),
