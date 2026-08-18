@@ -16,6 +16,12 @@ const $ = (id) => document.getElementById(id);
 /** Todas las órdenes cargadas (filtros se aplican en memoria) */
 let allOrders = [];
 
+/** Última lista filtrada (para recargar la tabla con "Mostrar más") */
+let listaFiltrada = [];
+
+/** Cantidad de filas visibles en la tabla de órdenes recientes */
+let limiteVisible = 50;
+
 /** Nombre interno de la pantalla visible (auth-dash | denied-dash | panel-dash) */
 function mostrarPantalla(nombre) {
   ['auth-dash', 'denied-dash', 'panel-dash'].forEach((id) => {
@@ -27,12 +33,16 @@ function mostrarPantalla(nombre) {
 let toastTimeout = null;
 
 /**
- * Muestra un toast de error (mensaje en la esquina inferior derecha).
+ * Muestra un toast (mensaje en la esquina inferior derecha).
  * @param {string} msg - Mensaje a mostrar
+ * @param {string} tipo - 'error' (rojo, valor por defecto) | 'ok' (verde)
  */
-function showToast(msg) {
+function showToast(msg, tipo = 'error') {
   const toast = $('dash-toast');
+  const esError = tipo !== 'ok';
   toast.textContent = msg;
+  toast.classList.remove('bg-red-600', 'bg-green-600');
+  toast.classList.add(esError ? 'bg-red-600' : 'bg-green-600');
   toast.classList.remove('hidden');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.classList.add('hidden'), 4000);
@@ -90,6 +100,8 @@ function aplicarFiltros() {
     });
   }
 
+  limiteVisible = 50;
+  listaFiltrada = lista;
   calcularKPIs(lista);
   renderTablaActivas(lista);
 }
@@ -113,20 +125,56 @@ function calcularKPIs(lista) {
 }
 
 /**
- * Renderiza las 10 últimas órdenes activas (no Finalizada) de la lista filtrada.
+ * Genera el HTML de un select de estado con estilos de badge según el estado
+ * actual de la orden. Incluye el estado de la fila como opción por si es un
+ * valor heredado que ya no existe en ORDER_STATUSES.
+ * @param {string} status - Estado actual de la orden
+ * @returns {string} HTML del select
+ */
+function statusSelectHtml(status) {
+  const opciones = ORDER_STATUSES.map((s) => {
+    const sel = s.value === status ? ' selected' : '';
+    return `<option value="${escapeHtml(s.value)}"${sel}>${escapeHtml(s.label)}</option>`;
+  }).join('');
+  const heredado =
+    ORDER_STATUSES.some((s) => s.value === status)
+      ? ''
+      : `<option value="${escapeHtml(status)}" selected>${escapeHtml(status)}</option>`;
+  return (
+    '<select class="dash-status-select px-2 py-1 rounded-full text-xs font-semibold ' +
+    statusBadgeClass(status) +
+    ' border border-transparent cursor-pointer">' +
+    opciones +
+    heredado +
+    '</select>'
+  );
+}
+
+/**
+ * Muestra u oculta el botón "Mostrar más" según queden filas por cargar.
+ * @param {number} total - Cantidad de filas en la lista filtrada
+ */
+function toggleBotonMostrarMas(total) {
+  $('btn-mostrar-mas').classList.toggle('hidden', total <= limiteVisible);
+}
+
+/**
+ * Renderiza las órdenes recientes (todas las de la lista filtrada, sean
+ * activas o Finalizada) limitadas a `limiteVisible`, con select de estado.
  * @param {Array<Object>} lista - Órdenes filtradas
  */
 function renderTablaActivas(lista) {
   const tbody = $('tbody-ultimas');
-  const activas = lista.filter((o) => o.status !== 'Finalizada').slice(0, 10);
+  const visibles = lista.slice(0, limiteVisible);
 
   tbody.innerHTML = '';
-  if (activas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">No hay órdenes activas.</td></tr>`;
+  if (visibles.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center p-8 text-gray-500">No hay órdenes con los filtros seleccionados.</td></tr>`;
+    toggleBotonMostrarMas(lista.length);
     return;
   }
 
-  activas.forEach((o) => {
+  visibles.forEach((o) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="px-4 py-3 font-bold">#${escapeHtml(o.order_number)}</td>
@@ -134,11 +182,31 @@ function renderTablaActivas(lista) {
       <td class="px-4 py-3">${escapeHtml(o.nombre)}</td>
       <td class="px-4 py-3">${escapeHtml(o.vehiculo)}</td>
       <td class="px-4 py-3"><span class="bg-gray-200 px-2 py-1 rounded font-mono text-xs font-bold">${escapeHtml(o.dominio)}</span></td>
-      <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusBadgeClass(o.status)}">${escapeHtml(o.status)}</span></td>
+      <td class="px-4 py-3">${statusSelectHtml(o.status)}</td>
       <td class="px-4 py-3">${formatearMoneda(o.monto_cobrado)}</td>
     `;
+    const select = tr.querySelector('.dash-status-select');
+    select.addEventListener('change', async (e) => {
+      e.stopPropagation();
+      const nuevoEstado = select.value;
+      select.disabled = true;
+      const { error } = await supabaseClient
+        .from('work_orders')
+        .update({ status: nuevoEstado })
+        .eq('id', o.id);
+      select.disabled = false;
+      if (error) {
+        select.value = o.status;
+        showToast('Error al actualizar el estado: ' + error.message, 'error');
+        return;
+      }
+      showToast(`Estado actualizado a ${nuevoEstado}.`, 'ok');
+      cargarDashboard();
+    });
     tbody.appendChild(tr);
   });
+
+  toggleBotonMostrarMas(lista.length);
 }
 
 /**
@@ -178,6 +246,12 @@ filtroEstado.innerHTML =
 filtroEstado.addEventListener('change', aplicarFiltros);
 $('dash-fecha-desde').addEventListener('change', aplicarFiltros);
 $('dash-fecha-hasta').addEventListener('change', aplicarFiltros);
+
+// Carga 50 filas más desde la lista filtrada actual
+$('btn-mostrar-mas').addEventListener('click', () => {
+  limiteVisible += 50;
+  renderTablaActivas(listaFiltrada);
+});
 
 // Login del dashboard (sin registro)
 $('dash-login-form').addEventListener('submit', async (e) => {
