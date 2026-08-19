@@ -32,7 +32,9 @@ if (orderIdParam) {
   showPublicOrderView(orderIdParam);
 } else {
   checkUser();
-  document.getElementById('fecha').valueAsDate = new Date();
+  const hoy = new Date();
+  const fechaLocal = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  document.getElementById('fecha').value = fechaLocal;
 }
 
 // --- REGISTRO DEL SERVICE WORKER ---

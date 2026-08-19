@@ -230,6 +230,8 @@ export function setupAddMorePhotos(order, onDone) {
 /**
  * Configura el modal de cámara para la sección de "añadir más fotos".
  * Asocia los botones del modal con los inputs específicos de esta sección.
+ * Al finalizar (tras seleccionar fotos o cancelar), restaura los handlers
+ * originales de los botones del formulario principal.
  * @param {HTMLInputElement} inputBack - Input de cámara trasera
  * @param {HTMLInputElement} inputFront - Input de cámara frontal
  * @param {HTMLInputElement} inputGallery - Input de galería
@@ -247,27 +249,42 @@ export function setupCameraModalForAddMore(inputBack, inputFront, inputGallery, 
   const originalGalleryClick = galleryBtn?.onclick;
   const originalCancelClick = cancelBtn?.onclick;
 
+  // Restaura los handlers originales de los botones del formulario principal
+  // para que el modal de cámara no los pise permanentemente.
+  function restoreOriginalHandlers() {
+    if (backBtn) backBtn.onclick = originalBackClick;
+    if (frontBtn) frontBtn.onclick = originalFrontClick;
+    if (galleryBtn) galleryBtn.onclick = originalGalleryClick;
+    if (cancelBtn) cancelBtn.onclick = originalCancelClick;
+  }
+
   // Configurar nuevos event listeners
   if (backBtn) {
     backBtn.onclick = () => {
       closeCameraSelectModal();
       inputBack.click();
+      restoreOriginalHandlers();
     };
   }
   if (frontBtn) {
     frontBtn.onclick = () => {
       closeCameraSelectModal();
       inputFront.click();
+      restoreOriginalHandlers();
     };
   }
   if (galleryBtn) {
     galleryBtn.onclick = () => {
       closeCameraSelectModal();
       inputGallery.click();
+      restoreOriginalHandlers();
     };
   }
   if (cancelBtn) {
-    cancelBtn.onclick = closeCameraSelectModal;
+    cancelBtn.onclick = () => {
+      closeCameraSelectModal();
+      restoreOriginalHandlers();
+    };
   }
 
   // Event listeners para cuando se seleccionan fotos (se auto-remueven)

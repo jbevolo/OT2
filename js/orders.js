@@ -239,8 +239,8 @@ export function filterOrders(query) {
  * Calcula y establece el siguiente número de orden disponible.
  */
 export function setNextOrderNumber() {
-  const next = state.allOrders.length > 0 ? Math.max(...state.allOrders.map((o) => o.order_number)) + 1 : 1;
-  DOM.orderNumberInput.value = next;
+  const maxOrder = state.allOrders.reduce((max, o) => Math.max(max, Number(o.order_number) || 0), 0);
+  DOM.orderNumberInput.value = maxOrder + 1;
 }
 
 /**

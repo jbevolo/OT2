@@ -63,10 +63,7 @@ function formatearMoneda(valor) {
  * @async
  */
 async function cargarDashboard() {
-  const { data, error } = await supabaseClient
-    .from('work_orders')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabaseClient.rpc('get_dashboard_orders');
 
   if (error) {
     console.error(error);
@@ -190,10 +187,7 @@ function renderTablaActivas(lista) {
       e.stopPropagation();
       const nuevoEstado = select.value;
       select.disabled = true;
-      const { error } = await supabaseClient
-        .from('work_orders')
-        .update({ status: nuevoEstado })
-        .eq('id', o.id);
+      const { error } = await supabaseClient.rpc('update_dashboard_status', { p_id: o.id, p_status: nuevoEstado });
       select.disabled = false;
       if (error) {
         select.value = o.status;
